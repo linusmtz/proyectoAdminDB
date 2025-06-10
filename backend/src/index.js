@@ -92,14 +92,13 @@ app.delete('/tasks/:id', async (req, res) => {
   }
 });
 
-// ✅ Servir archivos estáticos del frontend (build)
+// ### SERVIR FRONTEND ###
 app.use(express.static(path.join(__dirname, '../public')));
 
-// 🚧 Fallback para SPA: la ruta comodín debe ser '/*'
-app.get('/*', (_req, res) => {
+app.get(/.*/, (_req, res) => {
   res.sendFile(path.resolve(__dirname, '../public/index.html'));
 });
 
-// 🚀 Iniciar servidor en todas las interfaces
+// ### INICIAR SERVIDOR ###
 const port = parseInt(process.env.API_PORT, 10) || 3000;
 app.listen(port, '0.0.0.0', () => console.log(`API listening on port ${port}`));
