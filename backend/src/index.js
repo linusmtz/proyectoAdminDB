@@ -28,7 +28,7 @@ app.get('/tasks', async (_req, res) => {
 // 2) OBTENER una tarea por ID
 app.get('/tasks/:id', async (req, res) => {
   const { Item } = await db.send(
-    new GetItemCommand({ TableName: TABLE, Key:{ id: { S: req.params.id } } })
+    new GetItemCommand({ TableName: TABLE, Key: { id: { S: req.params.id } } })
   );
   if (!Item) return res.status(404).json({ error: 'Not found' });
   res.json(Item);
@@ -68,10 +68,10 @@ app.delete('/tasks/:id', async (req, res) => {
 
 // ✅ Servir archivos estáticos del frontend (build)
 app.use(express.static(path.join(__dirname, '../public')));
-app.get('*', (_req, res) => {
+app.get('/*', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// 🚀 Iniciar servidor
+// 🚀 Iniciar servidor (escuchando en todas las interfaces)
 const port = parseInt(process.env.API_PORT, 10) || 3000;
-app.listen(port, () => console.log(`API listening on port ${port}`));
+app.listen(port, '0.0.0.0', () => console.log(`API listening on port ${port}`));
