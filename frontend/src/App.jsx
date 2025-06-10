@@ -7,6 +7,8 @@ function App() {
 
   useEffect(() => {
     fetchTasks();
+    document.body.style.backgroundColor = '#ffffff';
+    document.body.style.color = '#000000';
   }, []);
 
   const fetchTasks = () => {
