@@ -19,11 +19,23 @@ app.use(cors(), express.json());
 const db = new DynamoDBClient({ region: process.env.AWS_REGION });
 const TABLE = process.env.DYNAMODB_TABLE;
 
+// Función para convertir ítems DynamoDB a objetos normales
+const parseItem = (item) => ({
+  id: item.id?.S,
+  title: item.title?.S,
+  description: item.description?.S || "",
+  priority: item.priority?.S || "medium",
+  category: item.category?.S || "Personal",
+  completed: item.completed?.BOOL || false,
+  createdAt: item.createdAt?.S,
+});
+
 // 1) LISTAR todas las tareas
 app.get('/tasks', async (_req, res) => {
   try {
     const { Items } = await db.send(new ScanCommand({ TableName: TABLE }));
-    res.json(Items);
+    const tasks = Items.map(parseItem);
+    res.json(tasks);
   } catch (error) {
     console.error('Error listing tasks:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -37,7 +49,7 @@ app.get('/tasks/:id', async (req, res) => {
       new GetItemCommand({ TableName: TABLE, Key: { id: { S: req.params.id } } })
     );
     if (!Item) return res.status(404).json({ error: 'Not found' });
-    res.json(Item);
+    res.json(parseItem(Item));
   } catch (error) {
     console.error('Error fetching task:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -48,12 +60,32 @@ app.get('/tasks/:id', async (req, res) => {
 app.post('/tasks', async (req, res) => {
   try {
     const id = uuidv4();
-    const { name } = req.body;
-    await db.send(new PutItemCommand({
-      TableName: TABLE,
-      Item: { id: { S: id }, name: { S: name } }
-    }));
-    res.status(201).json({ id, name });
+    const createdAt = new Date().toISOString();
+    const {
+      title,
+      description = "",
+      priority = "medium",
+      category = "Personal",
+      completed = false,
+    } = req.body;
+
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'Field "title" is required and must be a string.' });
+    }
+
+    const item = {
+      id: { S: id },
+      title: { S: title },
+      description: { S: description },
+      priority: { S: priority },
+      category: { S: category },
+      completed: { BOOL: completed },
+      createdAt: { S: createdAt }
+    };
+
+    await db.send(new PutItemCommand({ TableName: TABLE, Item: item }));
+
+    res.status(201).json({ id, title, description, priority, category, completed, createdAt });
   } catch (error) {
     console.error('Error creating task:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -63,15 +95,43 @@ app.post('/tasks', async (req, res) => {
 // 4) ACTUALIZAR tarea existente
 app.put('/tasks/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    await db.send(new UpdateItemCommand({
+    const updates = req.body;
+
+    // Crear expresiones para DynamoDB
+    const expressions = [];
+    const ExpressionAttributeNames = {};
+    const ExpressionAttributeValues = {};
+
+    for (const key of ['title', 'description', 'priority', 'category', 'completed']) {
+      if (updates[key] !== undefined) {
+        const attrName = `#${key}`;
+        const attrValue = `:${key}`;
+        expressions.push(`${attrName} = ${attrValue}`);
+        ExpressionAttributeNames[attrName] = key;
+        ExpressionAttributeValues[attrValue] =
+          typeof updates[key] === 'boolean'
+            ? { BOOL: updates[key] }
+            : { S: String(updates[key]) };
+      }
+    }
+
+    if (expressions.length === 0) {
+      return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    const command = new UpdateItemCommand({
       TableName: TABLE,
       Key: { id: { S: req.params.id } },
-      UpdateExpression: 'SET #n = :v',
-      ExpressionAttributeNames: { '#n': 'name' },
-      ExpressionAttributeValues: { ':v': { S: name } }
-    }));
-    res.json({ id: req.params.id, name });
+      UpdateExpression: 'SET ' + expressions.join(', '),
+      ExpressionAttributeNames,
+      ExpressionAttributeValues,
+      ReturnValues: "ALL_NEW"
+    });
+
+    const result = await db.send(command);
+    const updatedItem = parseItem(result.Attributes);
+
+    res.json(updatedItem);
   } catch (error) {
     console.error('Error updating task:', error);
     res.status(500).json({ error: 'Internal Server Error' });
