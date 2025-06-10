@@ -2,8 +2,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { DynamoDBClient, ScanCommand, GetItemCommand,
-        PutItemCommand, UpdateItemCommand, DeleteItemCommand } = require('@aws-sdk/client-dynamodb');
+const path = require('path');
+const {
+  DynamoDBClient,
+  ScanCommand,
+  GetItemCommand,
+  PutItemCommand,
+  UpdateItemCommand,
+  DeleteItemCommand
+} = require('@aws-sdk/client-dynamodb');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -59,6 +66,12 @@ app.delete('/tasks/:id', async (req, res) => {
   res.sendStatus(204);
 });
 
-// Iniciar servidor
+// ✅ Servir archivos estáticos del frontend (build)
+app.use(express.static(path.join(__dirname, '../public')));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// 🚀 Iniciar servidor
 const port = parseInt(process.env.API_PORT, 10) || 3000;
 app.listen(port, () => console.log(`API listening on port ${port}`));
