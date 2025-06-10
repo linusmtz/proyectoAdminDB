@@ -19,9 +19,9 @@ app.use(cors(), express.json());
 const db = new DynamoDBClient({ region: process.env.AWS_REGION });
 const TABLE = process.env.DYNAMODB_TABLE;
 
-// Función para convertir ítems DynamoDB a objetos normales
+// 🔁 Función para convertir item de DynamoDB a objeto JS
 const parseItem = (item) => ({
-  id: item.id?.S,
+  id: item.TaskID?.S,
   title: item.title?.S,
   description: item.description?.S || "",
   priority: item.priority?.S || "medium",
@@ -30,7 +30,7 @@ const parseItem = (item) => ({
   createdAt: item.createdAt?.S,
 });
 
-// 1) LISTAR todas las tareas
+// 1️⃣ Listar todas las tareas
 app.get('/tasks', async (_req, res) => {
   try {
     const { Items } = await db.send(new ScanCommand({ TableName: TABLE }));
@@ -42,11 +42,14 @@ app.get('/tasks', async (_req, res) => {
   }
 });
 
-// 2) OBTENER una tarea por ID
+// 2️⃣ Obtener una tarea por ID
 app.get('/tasks/:id', async (req, res) => {
   try {
     const { Item } = await db.send(
-      new GetItemCommand({ TableName: TABLE, Key: { id: { S: req.params.id } } })
+      new GetItemCommand({
+        TableName: TABLE,
+        Key: { TaskID: { S: req.params.id } },
+      })
     );
     if (!Item) return res.status(404).json({ error: 'Not found' });
     res.json(parseItem(Item));
@@ -56,7 +59,7 @@ app.get('/tasks/:id', async (req, res) => {
   }
 });
 
-// 3) CREAR nueva tarea
+// 3️⃣ Crear nueva tarea
 app.post('/tasks', async (req, res) => {
   try {
     const id = uuidv4();
@@ -74,13 +77,13 @@ app.post('/tasks', async (req, res) => {
     }
 
     const item = {
-      id: { S: id },
+      TaskID: { S: id },
       title: { S: title },
       description: { S: description },
       priority: { S: priority },
       category: { S: category },
       completed: { BOOL: completed },
-      createdAt: { S: createdAt }
+      createdAt: { S: createdAt },
     };
 
     await db.send(new PutItemCommand({ TableName: TABLE, Item: item }));
@@ -92,12 +95,11 @@ app.post('/tasks', async (req, res) => {
   }
 });
 
-// 4) ACTUALIZAR tarea existente
+// 4️⃣ Actualizar tarea existente
 app.put('/tasks/:id', async (req, res) => {
   try {
     const updates = req.body;
 
-    // Crear expresiones para DynamoDB
     const expressions = [];
     const ExpressionAttributeNames = {};
     const ExpressionAttributeValues = {};
@@ -121,16 +123,15 @@ app.put('/tasks/:id', async (req, res) => {
 
     const command = new UpdateItemCommand({
       TableName: TABLE,
-      Key: { id: { S: req.params.id } },
+      Key: { TaskID: { S: req.params.id } },
       UpdateExpression: 'SET ' + expressions.join(', '),
       ExpressionAttributeNames,
       ExpressionAttributeValues,
-      ReturnValues: "ALL_NEW"
+      ReturnValues: "ALL_NEW",
     });
 
     const result = await db.send(command);
     const updatedItem = parseItem(result.Attributes);
-
     res.json(updatedItem);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -138,12 +139,12 @@ app.put('/tasks/:id', async (req, res) => {
   }
 });
 
-// 5) BORRAR tarea
+// 5️⃣ Borrar tarea
 app.delete('/tasks/:id', async (req, res) => {
   try {
     await db.send(new DeleteItemCommand({
       TableName: TABLE,
-      Key: { id: { S: req.params.id } }
+      Key: { TaskID: { S: req.params.id } }
     }));
     res.sendStatus(204);
   } catch (error) {
@@ -152,13 +153,12 @@ app.delete('/tasks/:id', async (req, res) => {
   }
 });
 
-// ### SERVIR FRONTEND ###
+// 🔁 Servir frontend
 app.use(express.static(path.join(__dirname, '../public')));
-
 app.get(/.*/, (_req, res) => {
   res.sendFile(path.resolve(__dirname, '../public/index.html'));
 });
 
-// ### INICIAR SERVIDOR ###
+// 🚀 Iniciar servidor
 const port = parseInt(process.env.API_PORT, 10) || 3000;
 app.listen(port, '0.0.0.0', () => console.log(`API listening on port ${port}`));
